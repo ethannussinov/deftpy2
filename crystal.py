@@ -49,9 +49,6 @@ class Crystal:
     def visualize(self):
         """
         Opens a visualization window of the crystal structure using ASE's view function.
-
-        Args:
-            none
         """
         atoms = AseAtomsAdaptor.get_atoms(self.structure)
         view(atoms)
