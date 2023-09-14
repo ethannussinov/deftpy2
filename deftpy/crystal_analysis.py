@@ -40,11 +40,13 @@ class Crystal:
         package_dir = os.path.dirname(os.path.abspath(__file__))
         self.eb = pd.read_csv(os.path.join(package_dir, self.eb_path))
         self.vr = pd.read_csv(os.path.join(package_dir, self.vr_path))
+        self._cn_dicts_initialized = False 
         self.bond_dissociation_enthalpies = self.get_bond_dissociation_enthalpies()
         self.reduction_potentials = self.get_reduction_potentials()
-        self._cn_dicts_initialized = False 
 
     def _initialize_structure_analysis(self):
+        cn_dicts = []
+        
         if not self._cn_dicts_initialized:
             structure = self.structure
 
