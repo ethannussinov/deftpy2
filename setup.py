@@ -7,9 +7,8 @@ setup(
     install_requires=[
         'numpy',
         'pandas',
-        'ase.visualize',
-        'pymatgen.analysis.local_env',
-        'pymatgen.core',
-        'pymatgen.analysis.defects.generators'
+        'ase',
+        'pymatgen',
+        'pymatgen-analysis-defects'
     ],
 )
