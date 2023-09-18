@@ -4,8 +4,8 @@ from pymatgen.analysis.local_env import CrystalNN
 from pymatgen.core import Species
 from pymatgen.core.structure import Structure
 
-EB = pd.read_csv("Eb.csv")
-VR = pd.read_csv("VR.csv")
+EB = pd.read_csv("../data/Eb.csv")
+VR = pd.read_csv("../data/VR.csv")
 
 
 def get_crystal_bond_dissociation_enthalpies(filename: str, ) -> dict:
@@ -90,8 +90,8 @@ def get_crystal_reduction_potentials(filename: str, ) -> dict:
 
 
 def main():
-    cbdes = get_crystal_bond_dissociation_enthalpies("test_files/4166149.vasp")
-    crps = get_crystal_reduction_potentials("test_files/4166149.vasp")
+    cbdes = get_crystal_bond_dissociation_enthalpies("../data/test_files/OQMD_CaTiO3_POSCAR.txt")
+    crps = get_crystal_reduction_potentials("../data/test_files/OQMD_CaTiO3_POSCAR.txt")
     print(cbdes)
     print(crps)
     print(0.1 * list(cbdes.values())[0] * 4 - 1.5 * list(crps.values())[0])
