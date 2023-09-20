@@ -1,9 +1,12 @@
 """ Get crystal features for structures in Matt Witman's Nature Computational Science Paper """
 from glob import glob
 
+import adjustText
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 from pymatgen.core import Structure, Composition
+from sklearn.linear_model import HuberRegressor
 from tqdm import tqdm
 
 from deftpy.crystal_analysis import Crystal
@@ -12,7 +15,6 @@ from deftpy.crystal_analysis import Crystal
 def main():
     csv_paths = sorted(glob("playground/witman_data/data_01_03_22/csvs/*.csv"))
     poscar_path = "playground/witman_data/data_01_03_22/poscars"
-    oxstate_paths = sorted(glob("playground/witman_data/data_01_03_22/oxstate/*_oxstate"))
 
     # Read in all the data and concatenate it into one dataframe
     # Create a column for the csv file name, not including the path and .csv extension
@@ -106,6 +108,29 @@ def main():
             pass
     df_cf = df_cf.reset_index(drop=True)
     df_cf.to_csv("witman_data.csv", index=False)
+
+    # plot witman-based cfm
+    # remove NaNs
+    df_cf = df_cf.dropna()
+    cfm = HuberRegressor()
+    X = df_cf[["Vr_max", "Eg"]]
+    y = df_cf["Ev"]
+    cfm.fit(X, y)
+    y_pred = cfm.predict(X)
+    plt.scatter(y, y_pred)
+    plt.plot([1, 9], [1, 9], "k--")
+    equation = f"$E_v$ = {cfm.intercept_:.2f} + {cfm.coef_[0]:.2f} $V_r$ + {cfm.coef_[1]:.2f} $E_g$"
+    plt.text(1, 9, equation, fontsize=9)
+    mae = np.mean(np.abs(y - y_pred))
+    plt.text(1, 8, f"MAE = {mae:.2f} eV", fontsize=9)
+    # add number of data points as text
+    plt.text(1, 7, f"n = {len(y)}", fontsize=9)
+    # texts = []
+    # for x, y, s in zip(y, y_pred, df_cf["formula"]):
+    #     texts.append(plt.text(x, y, s, size=6))
+    # adjustText.adjust_text(texts, arrowprops=dict(arrowstyle="-", color="k", lw=0.5))
+
+    plt.savefig("witman_fit.png", dpi=300)
 
 
 if __name__ == "__main__":

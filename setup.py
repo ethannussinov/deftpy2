@@ -8,7 +8,9 @@ setup(
         'numpy',
         'pandas',
         'ase',
+        'matplotlib',
         'pymatgen',
-        'pymatgen-analysis-defects'
+        'pymatgen-analysis-defects',
+        'tqdm',
     ],
 )
