@@ -1,8 +1,10 @@
 import re
+import sys
 from enum import Enum
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Callable
 
+import numpy as np
 import pandas as pd
 from ase.visualize import view
 from pymatgen.analysis.defects.generators import VacancyGenerator
@@ -10,20 +12,8 @@ from pymatgen.analysis.local_env import CrystalNN
 from pymatgen.core import Species, Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 
-SPECIES_SYMBOL = "O"
-
-
-class DataFiles(Enum):
-    EB = ("Eb", Path("../data/Eb.csv"))
-    VR = ("Vr", Path("../data/Vr.csv"))
-
-    @property
-    def column_name(self):
-        return self.value[0]
-
-    @property
-    def file_path(self):
-        return self.value[1]
+EB_DICT = {"filepath": "../data/Eb.csv", "column_name": "Eb", "comparison": "os"}
+VR_DICT = {"filepath": "../data/Vr.csv", "column_name": "Vr", "comparison": "n"}
 
 
 class Crystal:
@@ -83,12 +73,18 @@ class Crystal:
             split_str = Crystal._split_before_first_number(species_string)
             return None, split_str[0], round(float(split_str[1][:-1]))
 
-        species = Species(species_string)
+        species = Species.from_string(species_string)
         return species, species.symbol, species.oxi_state
 
-    def __init__(self, filepath: Optional[str] = None, poscar_string: Optional[str] = None,
-                 pymatgen_structure: Optional[Structure] = None, nn_finder: Optional[CrystalNN] = None,
-                 use_weights: Optional[bool] = False):
+    def __init__(
+            self,
+            filepath: Optional[str] = None,
+            poscar_string: Optional[str] = None,
+            pymatgen_structure: Optional[Structure] = None,
+            nn_finder: Optional[CrystalNN] = None,
+            use_weights: Optional[bool] = False,
+            species_symbol: Optional[str] = "O"
+    ):
         """
         Initializes the Crystal object.
 
@@ -116,15 +112,16 @@ class Crystal:
         self.nn_finder = nn_finder or CrystalNN()
         self.use_weights = use_weights
 
+        self.species_symbol = species_symbol
+
         package_dir = Path(__file__).parent
-        self.eb = pd.read_csv(package_dir / DataFiles.EB.file_path)
-        self.vr = pd.read_csv(package_dir / DataFiles.VR.file_path)
+        self.eb = pd.read_csv(package_dir / EB_DICT["filepath"])
+        self.vr = pd.read_csv(package_dir / VR_DICT["filepath"])
 
         self._cn_dicts_initialized = False
         self.cn_dicts = []
-        self.bond_dissociation_enthalpies = self._get_values(self.eb, DataFiles.EB.column_name,
-                                                             lambda df, os: df.os == os)
-        self.reduction_potentials = self._get_values(self.vr, DataFiles.VR.column_name, lambda df, os: df.n == os)
+        self.bond_dissociation_enthalpies = self._get_values(self.eb, EB_DICT["column_name"], EB_DICT["comparison"])
+        self.reduction_potentials = self._get_values(self.vr, VR_DICT["column_name"], VR_DICT["comparison"])
 
     def _initialize_structure_analysis(self) -> List[Dict[str, int]]:
         """
@@ -138,23 +135,25 @@ class Crystal:
         """
         if self._cn_dicts_initialized:
             return self.cn_dicts
-        self.structure.add_oxidation_state_by_guess()
+
+        # Check for oxidation states and add them if they are not present in the structure object already
+        if sum([x.oxi_state != 0 for x in self.structure.species]) == 0:
+            self.structure.add_oxidation_state_by_guess()
         vacancy_generator = VacancyGenerator()
         vacancies = vacancy_generator.get_defects(self.structure)
-        indices = [v.defect_site_index for v in vacancies if v.site.specie.symbol == SPECIES_SYMBOL]
+        indices = [v.defect_site_index for v in vacancies if v.site.specie.symbol == self.species_symbol]
         self.cn_dicts = [self.nn_finder.get_cn_dict(self.structure, i, use_weights=self.use_weights) for i in indices]
         self._cn_dicts_initialized = True
         return self.cn_dicts
 
-    def _get_values(self, dataframe: pd.DataFrame, column_name: str, comparison: Callable[[pd.DataFrame, int], bool]) \
-            -> List[Dict[str, float]]:
+    def _get_values(self, dataframe: pd.DataFrame, column_name: str, comparison: str) -> List[Dict[str, float]]:
         """
         Gets the values from the dataframe.
 
         Args:
             dataframe: The dataframe.
             column_name: The column name.
-            comparison: The comparison function.
+            comparison: The comparison column name.
 
         Returns:
             A list of dictionaries.
@@ -162,17 +161,21 @@ class Crystal:
         Examples:
             # TODO: Add examples
         """
-        return [
-            {
-                species_string: dataframe.loc[
-                    (dataframe.elem == symbol) & comparison(dataframe, oxidation_state), column_name].values[0]
-                for species_string, (species, symbol, oxidation_state) in
-                ((ss, self._parse_species_string(ss)) for ss in cn_dict.keys())
-                if not dataframe.loc[(dataframe.elem == symbol)
-                                     & comparison(dataframe, oxidation_state), column_name].empty
-            }
-            for cn_dict in self._initialize_structure_analysis()
-        ]
+        self._initialize_structure_analysis()
+        values = []
+        for cn_dict in self.cn_dicts:
+            value = {}
+            for species_string, cn in cn_dict.items():
+                species = Species.from_string(species_string)
+                symbol = species.symbol
+                oxidation_state = species.oxi_state
+                condition = (dataframe.elem == symbol) & (dataframe[comparison] == oxidation_state)
+                if not dataframe.loc[condition, column_name].empty:
+                    value[species_string] = dataframe.loc[condition, column_name].iloc[0]
+                else:
+                    value[species_string] = np.nan
+            values.append(value)
+        return values
 
     def visualize(self):
         """
