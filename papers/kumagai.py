@@ -1,5 +1,5 @@
 import pandas as pd
-from crystal_analysis import Crystal, Defect
+from deftpy.crystal_analysis import Crystal, Defect
 
 class KumagaiAnalysis:
     def __init__(self, data_path):

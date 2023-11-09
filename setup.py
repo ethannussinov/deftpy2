@@ -12,5 +12,6 @@ setup(
         'pymatgen',
         'pymatgen-analysis-defects',
         'tqdm',
+        'pySIPFENN',
     ],
 )

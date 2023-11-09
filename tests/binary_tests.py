@@ -2,6 +2,8 @@ import unittest
 from deftpy.crystal_analysis import Crystal
 from pathlib import Path
 
+# pymatgen implentation, structure
+
 class TestOxygenVacancies(unittest.TestCase):
     def load_poscar_data(self, compound_name):
         # Define the path to the POSCAR file for the given compound
