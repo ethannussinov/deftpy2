@@ -1,47 +1,61 @@
-from pymatgen.core import Structure
 from pysipfenn import Calculator
+import pysipfenn.descriptorDefinitions as desc_defs
+from pymatgen.core import Structure
 import pandas as pd
 
-eb_data = pd.read_csv('../data/Eb.csv')
-vr_data = pd.read_csv('../data/Vr.csv')
+def calculate_ehull_for_structure(file_path):
+    # Initialize the pySIPFENN Calculator
+    calculator = Calculator()
 
-def create_structure_from_poscar(poscar_path):
-    with open(poscar_path, 'r') as file:
-        poscar_content = file.read()
-    structure = Structure.from_str(poscar_content, fmt="poscar")
-    return structure
+    # Load the structure from the file
+    with open(file_path, 'r') as file:
+        structure = Structure.from_str(file.read(), fmt="poscar")
 
-# Path to  POSCAR files
-poscar_files = [
-    '../data/OQMD_CaTiO3_POSCAR.txt',
-    '../data/OQMD_CeO2_POSCAR.txt'
-]
+    # Generate the KS2022 descriptor for the structure
+    # The descriptor generation function is called directly from the descriptorDefinitions module
+    descriptor = desc_defs.KS2022.generate_descriptor(structure)
 
-# Convert POSCAR files to pymatgen Structure objects
-structures = [create_structure_from_poscar(path) for path in poscar_files]
-
-# Initialize the pySIPFENN Calculator
-calculator = Calculator()
-
-descriptors = [calculator.calculate_KS2022([structure])[0] for structure in structures]
-
-calculator.loadModels()
-
-compatible_models = calculator.findCompatibleModels('KS2022')
-
-predictions = [calculator.makePredictions(calculator.loadedModels, compatible_models, [descriptor])[0] for descriptor in descriptors]
+    # Load models compatible with 'KS2022' descriptors
+    calculator.loadModels()
+    print("Loaded models:", calculator.loadedModels.keys())
 
 
-ehull_values = [pred['Ehull'] for pred in predictions]
+    # Find compatible models for the descriptor
+    compatible_models = calculator.findCompatibleModels('KS2022')
 
-# Save the 'Ehull' predictions to a CSV file
-ehull_df = pd.DataFrame({'Ehull': ehull_values})
-ehull_df.to_csv('../data/Ehull_predictions.csv', index=False)
+    # Before making predictions
+    print("Compatible models found:", compatible_models)
+    print("Making predictions using loaded models and calculated descriptor...")
 
-# Optionally, you can return the 'Ehull' values if you want to use them elsewhere in your code
-def get_ehull_values():
-    return ehull_values
+    # Make sure you're only using models that have been loaded successfully
+    loaded_and_compatible_models = {model_name: calculator.loadedModels[model_name] 
+                                    for model_name in compatible_models 
+                                    if model_name in calculator.loadedModels}
 
+    # Now use the filtered dictionary to make predictions
+    predictions = calculator.makePredictions(loaded_and_compatible_models, list(loaded_and_compatible_models.keys()), [descriptor])
+
+    # Initialize an empty list for ehull values
+    ehull_values = []
+
+    # Try to extract 'Ehull' values from predictions
+    try:
+        # Assuming that each prediction is a dictionary with 'Ehull' as one of the keys
+        ehull_values = [pred['Ehull'] for pred in predictions]
+    except KeyError:
+        # If 'Ehull' key is not present in the predictions dictionary
+        print("The 'Ehull' key was not found in the prediction output.")
+    except TypeError:
+        # If the predictions are not in an expected format (not a list or not a dictionary)
+        print("The predictions were not in an expected format.")
+
+    # Create a DataFrame with the 'Ehull' predictions
+    ehull_df = pd.DataFrame({'Ehull': ehull_values})
+
+    return ehull_df
+
+# test the function with an example POSCAR file.
 if __name__ == "__main__":
-    # Run the main process to generate 'Ehull' predictions
-    get_ehull_values()
+    example_file_path = '../data/test_files/OQMD_CaTiO3_POSCAR.txt'  # Replace with the actual file path
+    ehull_df = calculate_ehull_for_structure(example_file_path)
+    print(ehull_df)
